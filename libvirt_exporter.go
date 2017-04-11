@@ -94,6 +94,47 @@ var (
 		"Amount of time spent flushing of a block device, in seconds.",
 		[]string{"domain", "source_file", "target_device"},
 		nil)
+
+	libvirtDomainInterfaceRxBytesDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_interface_stats", "receive_bytes_total"),
+		"Number of bytes received on a network interface, in bytes.",
+		[]string{"domain", "source_bridge", "target_device"},
+		nil)
+	libvirtDomainInterfaceRxPacketsDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_interface_stats", "receive_packets_total"),
+		"Number of packets received on a network interface.",
+		[]string{"domain", "source_bridge", "target_device"},
+		nil)
+	libvirtDomainInterfaceRxErrsDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_interface_stats", "receive_errors_total"),
+		"Number of packet receive errors on a network interface.",
+		[]string{"domain", "source_bridge", "target_device"},
+		nil)
+	libvirtDomainInterfaceRxDropDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_interface_stats", "receive_drops_total"),
+		"Number of packet receive drops on a network interface.",
+		[]string{"domain", "source_bridge", "target_device"},
+		nil)
+	libvirtDomainInterfaceTxBytesDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_interface_stats", "transmit_bytes_total"),
+		"Number of bytes transmitted on a network interface, in bytes.",
+		[]string{"domain", "source_bridge", "target_device"},
+		nil)
+	libvirtDomainInterfaceTxPacketsDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_interface_stats", "transmit_packets_total"),
+		"Number of packets transmitted on a network interface.",
+		[]string{"domain", "source_bridge", "target_device"},
+		nil)
+	libvirtDomainInterfaceTxErrsDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_interface_stats", "transmit_errors_total"),
+		"Number of packet transmit errors on a network interface.",
+		[]string{"domain", "source_bridge", "target_device"},
+		nil)
+	libvirtDomainInterfaceTxDropDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_interface_stats", "transmit_drops_total"),
+		"Number of packet transmit drops on a network interface.",
+		[]string{"domain", "source_bridge", "target_device"},
+		nil)
 )
 
 // CollectDomain extracts Prometheus metrics from a libvirt domain.
@@ -146,6 +187,7 @@ func CollectDomain(ch chan<- prometheus.Metric, domain *libvirt.Domain) error {
 		if err != nil {
 			return err
 		}
+
 		if blockStats.RdBytesSet {
 			ch <- prometheus.MustNewConstMetric(
 				libvirtDomainBlockRdBytesDesc,
@@ -220,6 +262,87 @@ func CollectDomain(ch chan<- prometheus.Metric, domain *libvirt.Domain) error {
 		}
 		// Skip "Errs", as the documentation does not clearly
 		// explain what this means.
+	}
+
+	// Report network interface statistics.
+	for _, iface := range desc.Devices.Interfaces {
+		interfaceStats, err := domain.InterfaceStats(iface.Target.Device)
+		if err != nil {
+			return err
+		}
+
+		if interfaceStats.RxBytesSet {
+			ch <- prometheus.MustNewConstMetric(
+				libvirtDomainInterfaceRxBytesDesc,
+				prometheus.CounterValue,
+				float64(interfaceStats.RxBytes),
+				domainName,
+				iface.Source.Bridge,
+				iface.Target.Device)
+		}
+		if interfaceStats.RxPacketsSet {
+			ch <- prometheus.MustNewConstMetric(
+				libvirtDomainInterfaceRxPacketsDesc,
+				prometheus.CounterValue,
+				float64(interfaceStats.RxPackets),
+				domainName,
+				iface.Source.Bridge,
+				iface.Target.Device)
+		}
+		if interfaceStats.RxErrsSet {
+			ch <- prometheus.MustNewConstMetric(
+				libvirtDomainInterfaceRxErrsDesc,
+				prometheus.CounterValue,
+				float64(interfaceStats.RxErrs),
+				domainName,
+				iface.Source.Bridge,
+				iface.Target.Device)
+		}
+		if interfaceStats.RxDropSet {
+			ch <- prometheus.MustNewConstMetric(
+				libvirtDomainInterfaceRxDropDesc,
+				prometheus.CounterValue,
+				float64(interfaceStats.RxDrop),
+				domainName,
+				iface.Source.Bridge,
+				iface.Target.Device)
+		}
+		if interfaceStats.TxBytesSet {
+			ch <- prometheus.MustNewConstMetric(
+				libvirtDomainInterfaceTxBytesDesc,
+				prometheus.CounterValue,
+				float64(interfaceStats.TxBytes),
+				domainName,
+				iface.Source.Bridge,
+				iface.Target.Device)
+		}
+		if interfaceStats.TxPacketsSet {
+			ch <- prometheus.MustNewConstMetric(
+				libvirtDomainInterfaceTxPacketsDesc,
+				prometheus.CounterValue,
+				float64(interfaceStats.TxPackets),
+				domainName,
+				iface.Source.Bridge,
+				iface.Target.Device)
+		}
+		if interfaceStats.TxErrsSet {
+			ch <- prometheus.MustNewConstMetric(
+				libvirtDomainInterfaceTxErrsDesc,
+				prometheus.CounterValue,
+				float64(interfaceStats.TxErrs),
+				domainName,
+				iface.Source.Bridge,
+				iface.Target.Device)
+		}
+		if interfaceStats.TxDropSet {
+			ch <- prometheus.MustNewConstMetric(
+				libvirtDomainInterfaceTxDropDesc,
+				prometheus.CounterValue,
+				float64(interfaceStats.TxDrop),
+				domainName,
+				iface.Source.Bridge,
+				iface.Target.Device)
+		}
 	}
 
 	return nil
