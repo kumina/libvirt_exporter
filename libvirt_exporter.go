@@ -121,7 +121,7 @@ func CollectDomain(ch chan<- prometheus.Metric, domain *libvirt.Domain) error {
 			ch <- prometheus.MustNewConstMetric(
 				libvirtBlockRdTotalTimesDesc,
 				prometheus.CounterValue,
-				float64(blockStats.RdTotalTimes) / 1e9,
+				float64(blockStats.RdTotalTimes)/1e9,
 				domainName,
 				disk.Source.File,
 				disk.Target.Device)
@@ -148,7 +148,7 @@ func CollectDomain(ch chan<- prometheus.Metric, domain *libvirt.Domain) error {
 			ch <- prometheus.MustNewConstMetric(
 				libvirtBlockWrTotalTimesDesc,
 				prometheus.CounterValue,
-				float64(blockStats.WrTotalTimes) / 1e9,
+				float64(blockStats.WrTotalTimes)/1e9,
 				domainName,
 				disk.Source.File,
 				disk.Target.Device)
@@ -166,7 +166,7 @@ func CollectDomain(ch chan<- prometheus.Metric, domain *libvirt.Domain) error {
 			ch <- prometheus.MustNewConstMetric(
 				libvirtBlockFlushTotalTimesDesc,
 				prometheus.CounterValue,
-				float64(blockStats.FlushTotalTimes) / 1e9,
+				float64(blockStats.FlushTotalTimes)/1e9,
 				domainName,
 				disk.Source.File,
 				disk.Target.Device)
