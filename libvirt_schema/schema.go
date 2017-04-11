@@ -18,18 +18,32 @@ type Domain struct {
 }
 
 type Devices struct {
-	Disks []Disk `xml:"disk"`
+	Disks      []Disk      `xml:"disk"`
+	Interfaces []Interface `xml:"interface"`
 }
 
 type Disk struct {
-	Source Source `xml:"source"`
-	Target Target `xml:"target"`
+	Source DiskSource `xml:"source"`
+	Target DiskTarget `xml:"target"`
 }
 
-type Source struct {
+type DiskSource struct {
 	File string `xml:"file,attr"`
 }
 
-type Target struct {
+type DiskTarget struct {
+	Device string `xml:"dev,attr"`
+}
+
+type Interface struct {
+	Source InterfaceSource `xml:"source"`
+	Target InterfaceTarget `xml:"target"`
+}
+
+type InterfaceSource struct {
+	Bridge string `xml:"bridge,attr"`
+}
+
+type InterfaceTarget struct {
 	Device string `xml:"dev,attr"`
 }
