@@ -22,13 +22,8 @@ type Devices struct {
 }
 
 type Disk struct {
-	Driver Driver `xml:"driver"`
 	Source Source `xml:"source"`
 	Target Target `xml:"target"`
-}
-
-type Driver struct {
-	Type string `xml:"type,attr"`
 }
 
 type Source struct {
