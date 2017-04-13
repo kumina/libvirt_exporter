@@ -22,7 +22,7 @@ cd /tmp
 wget https://libvirt.org/sources/libvirt-3.2.0.tar.xz
 tar -xf libvirt-3.2.0.tar.xz
 cd libvirt-3.2.0
-./configure --disable-shared --enable-static --without-storage-mpath
+./configure --disable-shared --enable-static --localstatedir=/var --without-storage-mpath
 make -j2
 make install
 sed -i 's/^Libs:.*/& -lnl -ltirpc -lxml2/' /usr/local/lib/pkgconfig/libvirt.pc
