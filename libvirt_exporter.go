@@ -357,34 +357,20 @@ func CollectFromLibvirt(ch chan<- prometheus.Metric, uri string) error {
 	}
 	defer conn.Close()
 
-	// First attempt to get a list of active domains using
-	// ListAllDomains(). If this fails, the remote side is using a version
-	// of libvirt older than 0.9.13. In that case, fall back to using
-	// ListDomains() in combination with LookupDomainById().
-	domains, err := conn.ListAllDomains(libvirt.CONNECT_LIST_DOMAINS_ACTIVE)
-	if err == nil {
-		for _, domain := range domains {
-			defer domain.Free()
-		}
-		for _, domain := range domains {
-			err = CollectDomain(ch, &domain)
+	// Use ListDomains() as opposed to using ListAllDomains(), as
+	// the latter is unsupported when talking to a system using
+	// libvirt 0.9.12 or older.
+	domainIds, err := conn.ListDomains()
+	if err != nil {
+		return err
+	}
+	for _, id := range domainIds {
+		domain, err := conn.LookupDomainById(id)
+		if err == nil {
+			err = CollectDomain(ch, domain)
+			domain.Free()
 			if err != nil {
 				return err
-			}
-		}
-	} else {
-		domainIds, err := conn.ListDomains()
-		if err != nil {
-			return err
-		}
-		for _, id := range domainIds {
-			domain, err := conn.LookupDomainById(id)
-			if err == nil {
-				err = CollectDomain(ch, domain)
-				domain.Free()
-				if err != nil {
-					return err
-				}
 			}
 		}
 	}
