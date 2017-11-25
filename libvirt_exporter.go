@@ -266,6 +266,9 @@ func CollectDomain(ch chan<- prometheus.Metric, domain *libvirt.Domain) error {
 
 	// Report network interface statistics.
 	for _, iface := range desc.Devices.Interfaces {
+		if iface.Target.Device == "" {
+			continue
+		}
 		interfaceStats, err := domain.InterfaceStats(iface.Target.Device)
 		if err != nil {
 			return err
