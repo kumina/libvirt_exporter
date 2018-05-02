@@ -183,6 +183,10 @@ func CollectDomain(ch chan<- prometheus.Metric, domain *libvirt.Domain) error {
 
 	// Report block device statistics.
 	for _, disk := range desc.Devices.Disks {
+		if disk.Device == "cdrom" || disk.Device == "fd" {
+			continue
+		}
+
 		blockStats, err := domain.BlockStats(disk.Target.Device)
 		if err != nil {
 			return err
