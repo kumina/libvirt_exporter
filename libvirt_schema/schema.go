@@ -23,6 +23,7 @@ type Devices struct {
 }
 
 type Disk struct {
+	Device string     `xml:"device,attr"`
 	Source DiskSource `xml:"source"`
 	Target DiskTarget `xml:"target"`
 }
