@@ -29,7 +29,7 @@ RUN go get -d ./... && \
     strip libvirt_exporter
 
 # Stage 2: Prepare final image
-FROM alpine:latest
+FROM scratch
 
 # Copy binary from Stage 1
 COPY --from=0 /go/src/github.com/kumina/libvirt_exporter/libvirt_exporter .
