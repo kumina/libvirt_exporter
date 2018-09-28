@@ -1,6 +1,6 @@
 #!/bin/sh
 
-docker run -i -v `pwd`:/libvirt_exporter alpine:edge /bin/sh << 'EOF'
+docker run -i -v `pwd`:/libvirt_exporter alpine:3.8 /bin/sh << 'EOF'
 set -ex
 
 # Install prerequisites for the build process.
