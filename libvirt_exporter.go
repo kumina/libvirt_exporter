@@ -15,13 +15,13 @@ package main
 
 import (
 	"encoding/xml"
-	"flag"
 	"log"
 	"net/http"
+	"os"
 
+	"github.com/libvirt/libvirt-go"
+	"gopkg.in/alecthomas/kingpin.v2"
 	"github.com/prometheus/client_golang/prometheus"
-
-	libvirt "github.com/libvirt/libvirt-go"
 
 	"github.com/kumina/libvirt_exporter/libvirt_schema"
 )
@@ -435,11 +435,12 @@ func (e *LibvirtExporter) Collect(ch chan<- prometheus.Metric) {
 
 func main() {
 	var (
-		listenAddress = flag.String("web.listen-address", ":9177", "Address to listen on for web interface and telemetry.")
-		metricsPath   = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
-		libvirtURI    = flag.String("libvirt.uri", "qemu:///system", "Libvirt URI from which to extract metrics.")
+		app				= kingpin.New("libvirt_exporter", "Prometheus metrics exporter for libvirt")
+		listenAddress = app.Flag("web.listen-address", "Address to listen on for web interface and telemetry.").Default(":9177").String()
+		metricsPath   = app.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
+		libvirtURI    = app.Flag("libvirt.uri", "Libvirt URI from which to extract metrics.").Default("qemu:///system").String()
 	)
-	flag.Parse()
+	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	exporter, err := NewLibvirtExporter(*libvirtURI)
 	if err != nil {
