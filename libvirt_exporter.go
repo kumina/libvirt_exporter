@@ -357,8 +357,31 @@ func CollectDomain(ch chan<- prometheus.Metric, domain *libvirt.Domain) error {
 
 // CollectFromLibvirt obtains Prometheus metrics from all domains in a
 // libvirt setup.
-func CollectFromLibvirt(ch chan<- prometheus.Metric, uri string) error {
-	conn, err := libvirt.NewConnect(uri)
+func CollectFromLibvirt(ch chan<- prometheus.Metric, uri string, user string, pass string) error {
+	var err error
+	var conn *libvirt.Connect
+	if (len(user) != 0 && len(pass) != 0) {
+		callback := func(creds []*libvirt.ConnectCredential) {
+			for _, cred := range creds {
+				if cred.Type == libvirt.CRED_AUTHNAME {
+					cred.Result = user
+					cred.ResultLen = len(cred.Result)
+				} else if cred.Type == libvirt.CRED_PASSPHRASE {
+					cred.Result = pass
+					cred.ResultLen = len(cred.Result)
+				}
+			}
+		}
+		auth := &libvirt.ConnectAuth{
+			CredType: []libvirt.ConnectCredentialType{
+				libvirt.CRED_AUTHNAME, libvirt.CRED_PASSPHRASE,
+			},
+			Callback: callback,
+		}
+		conn, err = libvirt.NewConnectWithAuth(uri, auth, 1)
+	} else {
+		conn, err = libvirt.NewConnect(uri)
+	}
 	if err != nil {
 		return err
 	}
@@ -388,12 +411,16 @@ func CollectFromLibvirt(ch chan<- prometheus.Metric, uri string) error {
 // LibvirtExporter implements a Prometheus exporter for libvirt state.
 type LibvirtExporter struct {
 	uri string
+	user string
+	pass string
 }
 
 // NewLibvirtExporter creates a new Prometheus exporter for libvirt.
-func NewLibvirtExporter(uri string) (*LibvirtExporter, error) {
+func NewLibvirtExporter(uri string, user string, pass string) (*LibvirtExporter, error) {
 	return &LibvirtExporter{
 		uri: uri,
+		user: user,
+		pass: pass,
 	}, nil
 }
 
@@ -418,7 +445,7 @@ func (e *LibvirtExporter) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect scrapes Prometheus metrics from libvirt.
 func (e *LibvirtExporter) Collect(ch chan<- prometheus.Metric) {
-	err := CollectFromLibvirt(ch, e.uri)
+	err := CollectFromLibvirt(ch, e.uri, e.user, e.pass)
 	if err == nil {
 		ch <- prometheus.MustNewConstMetric(
 			libvirtUpDesc,
@@ -439,10 +466,12 @@ func main() {
 		listenAddress = app.Flag("web.listen-address", "Address to listen on for web interface and telemetry.").Default(":9177").String()
 		metricsPath   = app.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
 		libvirtURI    = app.Flag("libvirt.uri", "Libvirt URI from which to extract metrics.").Default("qemu:///system").String()
+		libvirtUser   = app.Flag("libvirt.user", "Libvirt user login for sasl auth.").Default("").String()
+		libvirtPass   = app.Flag("libvirt.pass", "Libvirt user password for sasl auth.").Default("").String()
 	)
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
-	exporter, err := NewLibvirtExporter(*libvirtURI)
+	exporter, err := NewLibvirtExporter(*libvirtURI, *libvirtUser, *libvirtPass)
 	if err != nil {
 		panic(err)
 	}
