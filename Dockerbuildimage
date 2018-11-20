@@ -1,0 +1,18 @@
+# Stage 1: Build libvirt exporter
+FROM golang:alpine
+
+# Install dependencies
+RUN apk add --update git gcc g++ make libc-dev portablexdr-dev linux-headers libnl-dev perl libtirpc-dev pkgconfig wget python python-dev libxslt
+RUN wget ftp://xmlsoft.org/libxml2/libxml2-2.9.8.tar.gz -P /tmp && \
+    tar -xf /tmp/libxml2-2.9.8.tar.gz -C /tmp
+WORKDIR /tmp/libxml2-2.9.8
+RUN ./configure --disable-shared --enable-static && \
+    make -j2 && \
+    make install
+RUN wget https://libvirt.org/sources/libvirt-3.8.0.tar.xz -P /tmp && \
+    tar -xf /tmp/libvirt-3.8.0.tar.xz -C /tmp
+WORKDIR /tmp/libvirt-3.8.0
+RUN ./configure --disable-shared --enable-static --localstatedir=/var --without-storage-mpath && \
+    make -j2 && \
+    make install && \
+    sed -i 's/^Libs:.*/& -lnl -ltirpc -lxml2/' /usr/local/lib/pkgconfig/libvirt.pc
