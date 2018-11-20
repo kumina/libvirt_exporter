@@ -15,13 +15,14 @@ package main
 
 import (
 	"encoding/xml"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
 	"net/http"
 	"os"
 
 	"github.com/libvirt/libvirt-go"
-	"gopkg.in/alecthomas/kingpin.v2"
 	"github.com/prometheus/client_golang/prometheus"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/kumina/libvirt_exporter/libvirt_schema"
 )
@@ -357,26 +358,8 @@ func CollectDomain(ch chan<- prometheus.Metric, domain *libvirt.Domain) error {
 
 // CollectFromLibvirt obtains Prometheus metrics from all domains in a
 // libvirt setup.
-func CollectFromLibvirt(ch chan<- prometheus.Metric, uri string, libvirtauth int) error {
-	connectflag := libvirt.ConnectFlags(libvirtauth)
-	callback := func(creds []*libvirt.ConnectCredential) {
-		for _, cred := range creds {
-			if cred.Type == libvirt.CRED_AUTHNAME {
-				cred.Result = "user"
-				cred.ResultLen = len(cred.Result)
-			} else if cred.Type == libvirt.CRED_PASSPHRASE {
-				cred.Result = "pass"
-				cred.ResultLen = len(cred.Result)
-			}
-		}
-	}
-	auth := &libvirt.ConnectAuth{
-		CredType: []libvirt.ConnectCredentialType{
-			libvirt.CRED_AUTHNAME, libvirt.CRED_PASSPHRASE,
-		},
-		Callback: callback,
-	}
-	conn, err := libvirt.NewConnectWithAuth(uri, auth, connectflag)
+func CollectFromLibvirt(ch chan<- prometheus.Metric, uri string) error {
+	conn, err := libvirt.NewConnectReadOnly(uri)
 	if err != nil {
 		return err
 	}
@@ -406,14 +389,12 @@ func CollectFromLibvirt(ch chan<- prometheus.Metric, uri string, libvirtauth int
 // LibvirtExporter implements a Prometheus exporter for libvirt state.
 type LibvirtExporter struct {
 	uri string
-	libvirtauth int
 }
 
 // NewLibvirtExporter creates a new Prometheus exporter for libvirt.
-func NewLibvirtExporter(uri string, libvirtauth int) (*LibvirtExporter, error) {
+func NewLibvirtExporter(uri string) (*LibvirtExporter, error) {
 	return &LibvirtExporter{
 		uri: uri,
-		libvirtauth: libvirtauth,
 	}, nil
 }
 
@@ -438,7 +419,7 @@ func (e *LibvirtExporter) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect scrapes Prometheus metrics from libvirt.
 func (e *LibvirtExporter) Collect(ch chan<- prometheus.Metric) {
-	err := CollectFromLibvirt(ch, e.uri, e.libvirtauth)
+	err := CollectFromLibvirt(ch, e.uri)
 	if err == nil {
 		ch <- prometheus.MustNewConstMetric(
 			libvirtUpDesc,
@@ -455,21 +436,20 @@ func (e *LibvirtExporter) Collect(ch chan<- prometheus.Metric) {
 
 func main() {
 	var (
-		app				= kingpin.New("libvirt_exporter", "Prometheus metrics exporter for libvirt")
+		app           = kingpin.New("libvirt_exporter", "Prometheus metrics exporter for libvirt")
 		listenAddress = app.Flag("web.listen-address", "Address to listen on for web interface and telemetry.").Default(":9177").String()
 		metricsPath   = app.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
 		libvirtURI    = app.Flag("libvirt.uri", "Libvirt URI from which to extract metrics.").Default("qemu:///system").String()
-		libvirtAuth   = app.Flag("libvirt.auth", "Libvirt user login for sasl auth.").Default("0").Int()
 	)
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
-	exporter, err := NewLibvirtExporter(*libvirtURI, *libvirtAuth)
+	exporter, err := NewLibvirtExporter(*libvirtURI)
 	if err != nil {
 		panic(err)
 	}
 	prometheus.MustRegister(exporter)
 
-	http.Handle(*metricsPath, prometheus.Handler())
+	http.Handle(*metricsPath, promhttp.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`
 			<html>
