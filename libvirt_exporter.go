@@ -11,6 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Refactored by rumanzo
+
 package main
 
 import (
@@ -24,7 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/kumina/libvirt_exporter/libvirt_schema"
+	"github.com/rumanzo/libvirt_exporter/libvirt_schema"
 )
 
 var (
@@ -52,6 +54,13 @@ var (
 	libvirtDomainInfoCpuTimeDesc = prometheus.NewDesc(
 		prometheus.BuildFQName("libvirt", "domain_info", "cpu_time_seconds_total"),
 		"Amount of CPU time used by the domain, in seconds.",
+		[]string{"domain"},
+		nil)
+	libvirtDomainInfoVirDomainState = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_info", "vstate"),
+		"Virtual domain state. 0: no state, 1: the domain is running, 2: the domain is blocked on resource,"+
+			" 3: the domain is paused by user, 4: the domain is being shut down, 5: the domain is shut off,"+
+			"6: the domain is crashed, 7: the domain is suspended by guest power management",
 		[]string{"domain"},
 		nil)
 
@@ -139,14 +148,14 @@ var (
 )
 
 // CollectDomain extracts Prometheus metrics from a libvirt domain.
-func CollectDomain(ch chan<- prometheus.Metric, domain *libvirt.Domain) error {
-	domainName, err := domain.GetName()
+func CollectDomain(ch chan<- prometheus.Metric, stat libvirt.DomainStats) error {
+	domainName, err := stat.Domain.GetName()
 	if err != nil {
 		return err
 	}
 
 	// Decode XML description of domain to get block device names, etc.
-	xmlDesc, err := domain.GetXMLDesc(0)
+	xmlDesc, err := stat.Domain.GetXMLDesc(0)
 	if err != nil {
 		return err
 	}
@@ -157,7 +166,7 @@ func CollectDomain(ch chan<- prometheus.Metric, domain *libvirt.Domain) error {
 	}
 
 	// Report domain info.
-	info, err := domain.GetInfo()
+	info, err := stat.Domain.GetInfo()
 	if err != nil {
 		return err
 	}
@@ -181,92 +190,100 @@ func CollectDomain(ch chan<- prometheus.Metric, domain *libvirt.Domain) error {
 		prometheus.CounterValue,
 		float64(info.CpuTime)/1e9,
 		domainName)
+	ch <- prometheus.MustNewConstMetric(
+		libvirtDomainInfoVirDomainState,
+		prometheus.CounterValue,
+		float64(info.State),
+		domainName)
 
 	// Report block device statistics.
-	for _, disk := range desc.Devices.Disks {
-		if disk.Device == "cdrom" || disk.Device == "fd" {
+	for _, disk := range stat.Block {
+		var DiskSource string
+		if disk.Name == "hdc" {
 			continue
 		}
 
-		blockStats, err := domain.BlockStats(disk.Target.Device)
-		if err != nil {
-			return err
+		for _, dev := range desc.Devices.Disks {
+			if dev.Target.Device == disk.Name {
+				if len(dev.Source.File) == 0 {
+					DiskSource = dev.Source.Name
+				} else {
+					DiskSource = dev.Source.File
+				}
+			}
 		}
-
-		if blockStats.RdBytesSet {
+		if disk.RdBytesSet {
 			ch <- prometheus.MustNewConstMetric(
 				libvirtDomainBlockRdBytesDesc,
 				prometheus.CounterValue,
-				float64(blockStats.RdBytes),
+				float64(disk.RdBytes),
 				domainName,
-				disk.Source.File,
-				disk.Target.Device)
+				DiskSource,
+				disk.Name)
 		}
-		if blockStats.RdReqSet {
+		if disk.RdReqsSet {
 			ch <- prometheus.MustNewConstMetric(
 				libvirtDomainBlockRdReqDesc,
 				prometheus.CounterValue,
-				float64(blockStats.RdReq),
+				float64(disk.RdReqs),
 				domainName,
-				disk.Source.File,
-				disk.Target.Device)
+				DiskSource,
+				disk.Name)
 		}
-		if blockStats.RdTotalTimesSet {
+		if disk.RdBytesSet {
 			ch <- prometheus.MustNewConstMetric(
 				libvirtDomainBlockRdTotalTimesDesc,
 				prometheus.CounterValue,
-				float64(blockStats.RdTotalTimes)/1e9,
+				float64(disk.RdBytes)/1e9,
 				domainName,
-				disk.Source.File,
-				disk.Target.Device)
+				DiskSource,
+				disk.Name)
 		}
-		if blockStats.WrBytesSet {
+		if disk.WrBytesSet {
 			ch <- prometheus.MustNewConstMetric(
 				libvirtDomainBlockWrBytesDesc,
 				prometheus.CounterValue,
-				float64(blockStats.WrBytes),
+				float64(disk.WrBytes),
 				domainName,
-				disk.Source.File,
-				disk.Target.Device)
+				DiskSource,
+				disk.Name)
 		}
-		if blockStats.WrReqSet {
+		if disk.WrReqsSet {
 			ch <- prometheus.MustNewConstMetric(
 				libvirtDomainBlockWrReqDesc,
 				prometheus.CounterValue,
-				float64(blockStats.WrReq),
+				float64(disk.WrReqs),
 				domainName,
-				disk.Source.File,
-				disk.Target.Device)
+				disk.Name,
+				disk.Name)
 		}
-		if blockStats.WrTotalTimesSet {
+		if disk.WrTimesSet {
 			ch <- prometheus.MustNewConstMetric(
 				libvirtDomainBlockWrTotalTimesDesc,
 				prometheus.CounterValue,
-				float64(blockStats.WrTotalTimes)/1e9,
+				float64(disk.WrTimes)/1e9,
 				domainName,
-				disk.Source.File,
-				disk.Target.Device)
+				DiskSource,
+				disk.Name)
 		}
-		if blockStats.FlushReqSet {
+		if disk.FlReqsSet {
 			ch <- prometheus.MustNewConstMetric(
 				libvirtDomainBlockFlushReqDesc,
 				prometheus.CounterValue,
-				float64(blockStats.FlushReq),
+				float64(disk.FlReqs),
 				domainName,
-				disk.Source.File,
-				disk.Target.Device)
+				DiskSource,
+				disk.Name)
 		}
-		if blockStats.FlushTotalTimesSet {
+		if disk.FlTimesSet {
 			ch <- prometheus.MustNewConstMetric(
 				libvirtDomainBlockFlushTotalTimesDesc,
 				prometheus.CounterValue,
-				float64(blockStats.FlushTotalTimes)/1e9,
+				float64(disk.FlTimes),
 				domainName,
-				disk.Source.File,
-				disk.Target.Device)
+				DiskSource,
+				disk.Name)
 		}
-		// Skip "Errs", as the documentation does not clearly
-		// explain what this means.
 	}
 
 	// Report network interface statistics.
@@ -274,7 +291,7 @@ func CollectDomain(ch chan<- prometheus.Metric, domain *libvirt.Domain) error {
 		if iface.Target.Device == "" {
 			continue
 		}
-		interfaceStats, err := domain.InterfaceStats(iface.Target.Device)
+		interfaceStats, err := stat.Domain.InterfaceStats(iface.Target.Device)
 		if err != nil {
 			return err
 		}
@@ -365,21 +382,17 @@ func CollectFromLibvirt(ch chan<- prometheus.Metric, uri string) error {
 	}
 	defer conn.Close()
 
-	// Use ListDomains() as opposed to using ListAllDomains(), as
-	// the latter is unsupported when talking to a system using
-	// libvirt 0.9.12 or older.
-	domainIds, err := conn.ListDomains()
+	stats, err := conn.GetAllDomainStats([]*libvirt.Domain{}, libvirt.DOMAIN_STATS_STATE|libvirt.DOMAIN_STATS_CPU_TOTAL|
+		libvirt.DOMAIN_STATS_INTERFACE|libvirt.DOMAIN_STATS_BALLOON|libvirt.DOMAIN_STATS_BLOCK|
+		libvirt.DOMAIN_STATS_PERF|libvirt.DOMAIN_STATS_VCPU, 0)
 	if err != nil {
 		return err
 	}
-	for _, id := range domainIds {
-		domain, err := conn.LookupDomainById(id)
-		if err == nil {
-			err = CollectDomain(ch, domain)
-			domain.Free()
+	for _, stat := range stats {
+			err = CollectDomain(ch, stat)
+			stat.Domain.Free()
 			if err != nil {
 				return err
-			}
 		}
 	}
 
@@ -406,6 +419,7 @@ func (e *LibvirtExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- libvirtDomainInfoMemoryDesc
 	ch <- libvirtDomainInfoNrVirtCpuDesc
 	ch <- libvirtDomainInfoCpuTimeDesc
+	ch <- libvirtDomainInfoVirDomainState
 
 	ch <- libvirtDomainBlockRdBytesDesc
 	ch <- libvirtDomainBlockRdReqDesc
