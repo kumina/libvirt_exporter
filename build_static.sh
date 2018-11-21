@@ -31,6 +31,6 @@ sed -i 's/^Libs:.*/& -lnl -ltirpc -lxml2/' /usr/local/lib/pkgconfig/libvirt.pc
 cd /libvirt_exporter
 export GOPATH=/gopath
 go get -d ./...
-go build --ldflags '-extldflags "-static"'
+go build --ldflags '-extldflags "-static"' -o libvirt_exporter
 strip libvirt_exporter
 EOF
