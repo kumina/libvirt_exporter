@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Refactored by rumanzo
+// Project forked from https://github.com/kumina/libvirt_exporter
 
 package main
 
