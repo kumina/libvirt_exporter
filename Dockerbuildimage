@@ -15,4 +15,5 @@ WORKDIR /tmp/libvirt-3.8.0
 RUN ./configure --disable-shared --enable-static --localstatedir=/var --without-storage-mpath && \
     make -j2 && \
     make install && \
-    sed -i 's/^Libs:.*/& -lnl -ltirpc -lxml2/' /usr/local/lib/pkgconfig/libvirt.pc
+    sed -i 's/^Libs:.*/& -lnl -ltirpc -lxml2/' /usr/local/lib/pkgconfig/libvirt.pc && \
+    set -ex
