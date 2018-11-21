@@ -75,35 +75,53 @@ var (
 		[]string{"domain", "source_file", "target_device"},
 		nil)
 	libvirtDomainBlockRdTotalTimesDesc = prometheus.NewDesc(
-		prometheus.BuildFQName("libvirt", "domain_block_stats", "read_seconds_total"),
-		"Amount of time spent reading from a block device, in seconds.",
+		prometheus.BuildFQName("libvirt", "domain_block_stats", "read_time_total"),
+		"Total time (ns) spent on reads from a block device, in ns, that is, 1/1,000,000,000 of a second, or 10−9 seconds.",
 		[]string{"domain", "source_file", "target_device"},
 		nil)
 	libvirtDomainBlockWrBytesDesc = prometheus.NewDesc(
 		prometheus.BuildFQName("libvirt", "domain_block_stats", "write_bytes_total"),
-		"Number of bytes written from a block device, in bytes.",
+		"Number of bytes written to a block device, in bytes.",
 		[]string{"domain", "source_file", "target_device"},
 		nil)
 	libvirtDomainBlockWrReqDesc = prometheus.NewDesc(
 		prometheus.BuildFQName("libvirt", "domain_block_stats", "write_requests_total"),
-		"Number of write requests from a block device.",
+		"Number of write requests to a block device.",
 		[]string{"domain", "source_file", "target_device"},
 		nil)
 	libvirtDomainBlockWrTotalTimesDesc = prometheus.NewDesc(
-		prometheus.BuildFQName("libvirt", "domain_block_stats", "write_seconds_total"),
-		"Amount of time spent writing from a block device, in seconds.",
+		prometheus.BuildFQName("libvirt", "domain_block_stats", "write_time_total"),
+		"Total time (ns) spent on writes on a block device, in ns, that is, 1/1,000,000,000 of a second, or 10−9 seconds.",
 		[]string{"domain", "source_file", "target_device"},
 		nil)
 	libvirtDomainBlockFlushReqDesc = prometheus.NewDesc(
 		prometheus.BuildFQName("libvirt", "domain_block_stats", "flush_requests_total"),
-		"Number of flush requests from a block device.",
+		"Total flush requests from a block device.",
 		[]string{"domain", "source_file", "target_device"},
 		nil)
 	libvirtDomainBlockFlushTotalTimesDesc = prometheus.NewDesc(
-		prometheus.BuildFQName("libvirt", "domain_block_stats", "flush_seconds_total"),
-		"Amount of time spent flushing of a block device, in seconds.",
+		prometheus.BuildFQName("libvirt", "domain_block_stats", "flush_total"),
+		"Total time (ns) spent on cache flushing to a block device, in ns, that is, 1/1,000,000,000 of a second, or 10−9 seconds.",
 		[]string{"domain", "source_file", "target_device"},
 		nil)
+	libvirtDomainBlockAllocationDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_block_stats", "allocation"),
+		"Offset of the highest written sector on a block device.",
+		[]string{"domain", "source_file", "target_device"},
+		nil)
+	libvirtDomainBlockCapacityDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_block_stats", "capacity"),
+		"Logical size in bytes of the block device	backing image.",
+		[]string{"domain", "source_file", "target_device"},
+		nil)
+	libvirtDomainBlockPhysicalSizeDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_block_stats", "physicalsize"),
+		"Physical size in bytes of the container of the backing image.",
+		[]string{"domain", "source_file", "target_device"},
+		nil)
+
+
+
 
 	libvirtDomainInterfaceRxBytesDesc = prometheus.NewDesc(
 		prometheus.BuildFQName("libvirt", "domain_interface_stats", "receive_bytes_total"),
@@ -202,16 +220,20 @@ func CollectDomain(ch chan<- prometheus.Metric, stat libvirt.DomainStats) error 
 		if disk.Name == "hdc" {
 			continue
 		}
-
+		/*  "block.<num>.path" - string describing the source of block device <num>,
+                       if it is a file or block device (omitted for network
+                       sources and drives with no media inserted). For network device (i.e. rbd) take from xml. */
 		for _, dev := range desc.Devices.Disks {
 			if dev.Target.Device == disk.Name {
 				if len(dev.Source.File) == 0 {
 					DiskSource = dev.Source.Name
 				} else {
-					DiskSource = dev.Source.File
+					DiskSource = disk.Path
 				}
 			}
 		}
+
+		// https://libvirt.org/html/libvirt-libvirt-domain.html#virConnectGetAllDomainStats
 		if disk.RdBytesSet {
 			ch <- prometheus.MustNewConstMetric(
 				libvirtDomainBlockRdBytesDesc,
@@ -280,6 +302,33 @@ func CollectDomain(ch chan<- prometheus.Metric, stat libvirt.DomainStats) error 
 				libvirtDomainBlockFlushTotalTimesDesc,
 				prometheus.CounterValue,
 				float64(disk.FlTimes),
+				domainName,
+				DiskSource,
+				disk.Name)
+		}
+		if disk.AllocationSet {
+			ch <- prometheus.MustNewConstMetric(
+				libvirtDomainBlockAllocationDesc,
+				prometheus.CounterValue,
+				float64(disk.Allocation),
+				domainName,
+				DiskSource,
+				disk.Name)
+		}
+		if disk.CapacitySet {
+			ch <- prometheus.MustNewConstMetric(
+				libvirtDomainBlockCapacityDesc,
+				prometheus.CounterValue,
+				float64(disk.Capacity),
+				domainName,
+				DiskSource,
+				disk.Name)
+		}
+		if disk.PhysicalSet {
+			ch <- prometheus.MustNewConstMetric(
+				libvirtDomainBlockPhysicalSizeDesc,
+				prometheus.CounterValue,
+				float64(disk.Physical),
 				domainName,
 				DiskSource,
 				disk.Name)
@@ -389,13 +438,12 @@ func CollectFromLibvirt(ch chan<- prometheus.Metric, uri string) error {
 		return err
 	}
 	for _, stat := range stats {
-			err = CollectDomain(ch, stat)
-			stat.Domain.Free()
-			if err != nil {
-				return err
+		err = CollectDomain(ch, stat)
+		stat.Domain.Free()
+		if err != nil {
+			return err
 		}
 	}
-
 	return nil
 }
 
@@ -429,6 +477,9 @@ func (e *LibvirtExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- libvirtDomainBlockWrTotalTimesDesc
 	ch <- libvirtDomainBlockFlushReqDesc
 	ch <- libvirtDomainBlockFlushTotalTimesDesc
+	ch <- libvirtDomainBlockAllocationDesc
+	ch <- libvirtDomainBlockCapacityDesc
+	ch <- libvirtDomainBlockPhysicalSizeDesc
 }
 
 // Collect scrapes Prometheus metrics from libvirt.
