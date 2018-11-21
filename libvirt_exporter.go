@@ -26,7 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/rumanzo/libvirt_exporter/libvirt_schema"
+	"github.com/rumanzo/libvirt_exporter_improved/libvirt_schema"
 )
 
 var (
