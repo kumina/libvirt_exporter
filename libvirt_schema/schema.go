@@ -41,6 +41,14 @@ type DiskTarget struct {
 type Interface struct {
 	Source InterfaceSource `xml:"source"`
 	Target InterfaceTarget `xml:"target"`
+	Virtualport InterfaceVirtualPort `xml:"virtualport"`
+}
+
+type InterfaceVirtualPort struct {
+	Parameters InterfaceVirtualPortParam `xml:"parameters"`
+}
+type InterfaceVirtualPortParam struct {
+	InterfaceId string `xml:"interfaceid,attr"`
 }
 
 type InterfaceSource struct {
