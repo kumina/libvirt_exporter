@@ -26,7 +26,10 @@ import (
 	"github.com/kumina/libvirt_exporter/libvirt_schema"
 )
 
+//111111111111111111111111111111111111111111111111111111
 var (
+
+	//check is libvirt ok
 	libvirtUpDesc = prometheus.NewDesc(
 		prometheus.BuildFQName("libvirt", "", "up"),
 		"Whether scraping libvirt's metrics was successful.",
@@ -54,6 +57,7 @@ var (
 		[]string{"domain"},
 		nil)
 
+	// domain block r/w
 	libvirtDomainBlockRdBytesDesc = prometheus.NewDesc(
 		prometheus.BuildFQName("libvirt", "domain_block_stats", "read_bytes_total"),
 		"Number of bytes read from a block device, in bytes.",
@@ -94,6 +98,29 @@ var (
 		"Amount of time spent flushing of a block device, in seconds.",
 		[]string{"domain", "source_file", "target_device"},
 		nil)
+
+
+	// BlockCapacity
+	libvirtDomainBlockCapacity = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_block_info", "capacity"),
+		"how much storage the guest will see, in bytes.",
+		[]string{"domain", "source_file", "target_device"},
+		nil)
+
+	//BlockAllocation
+	libvirtDomainBlockAllocation = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_block_info", "physical"),
+		"host storage in bytes occupied by the image, in bytes.",
+		[]string{"domain", "source_file", "target_device"},
+		nil)
+
+	//BlockPhysical
+	libvirtDomainBlockPhysical = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_block_info", "allocation"),
+		"host physical size in bytes of the image container, in bytes.",
+		[]string{"domain", "source_file", "target_device"},
+		nil)
+
 
 	libvirtDomainInterfaceRxBytesDesc = prometheus.NewDesc(
 		prometheus.BuildFQName("libvirt", "domain_interface_stats", "receive_bytes_total"),
@@ -137,6 +164,8 @@ var (
 		nil)
 )
 
+
+//22222222222222222222222222222222222222222222222222
 // CollectDomain extracts Prometheus metrics from a libvirt domain.
 func CollectDomain(ch chan<- prometheus.Metric, domain *libvirt.Domain) error {
 	domainName, err := domain.GetName()
@@ -150,10 +179,12 @@ func CollectDomain(ch chan<- prometheus.Metric, domain *libvirt.Domain) error {
 		return err
 	}
 	var desc libvirt_schema.Domain
+	//Resolve the xml to libvirt_schema.Domain struct
 	err = xml.Unmarshal([]byte(xmlDesc), &desc)
 	if err != nil {
 		return err
 	}
+
 
 	// Report domain info.
 	info, err := domain.GetInfo()
@@ -186,6 +217,55 @@ func CollectDomain(ch chan<- prometheus.Metric, domain *libvirt.Domain) error {
 		if disk.Device == "cdrom" || disk.Device == "fd" {
 			continue
 		}
+
+
+		//Report domain block info
+		//flag 0 https://libvirt.org/html/libvirt-libvirt-domain.html#virDomainGetBlockInfo
+		//extra flags; not used yet, so callers should always pass 0
+		BlockInfo, err := domain.GetBlockInfo(disk.Target.Device, 0)
+
+		if err != nil {
+			return  err
+		}
+
+
+		//BlockInfo.Capacity
+		if BlockInfo.Capacity != 0 {
+			ch <- prometheus.MustNewConstMetric(
+				libvirtDomainBlockCapacity,
+				prometheus.CounterValue,
+				float64(BlockInfo.Capacity),
+				domainName,
+				disk.Source.File,
+				disk.Target.Device)
+
+		}
+
+		//BlockInfo.Capacity
+		if BlockInfo.Allocation != 0 {
+			ch <- prometheus.MustNewConstMetric(
+				libvirtDomainBlockAllocation,
+				prometheus.CounterValue,
+				float64(BlockInfo.Allocation),
+				domainName,
+				disk.Source.File,
+				disk.Target.Device)
+
+		}
+
+		//BlockInfo.Physical
+		if BlockInfo.Physical != 0 {
+			ch <- prometheus.MustNewConstMetric(
+				libvirtDomainBlockPhysical,
+				prometheus.CounterValue,
+				float64(BlockInfo.Physical),
+				domainName,
+				disk.Source.File,
+				disk.Target.Device)
+
+		}
+
+
 
 		blockStats, err := domain.BlockStats(disk.Target.Device)
 		if err != nil {
@@ -397,6 +477,8 @@ func NewLibvirtExporter(uri string) (*LibvirtExporter, error) {
 	}, nil
 }
 
+
+//3333333333333333333333333333333333333333333333333
 // Describe returns metadata for all Prometheus metrics that may be exported.
 func (e *LibvirtExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- libvirtUpDesc
@@ -405,6 +487,12 @@ func (e *LibvirtExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- libvirtDomainInfoMemoryDesc
 	ch <- libvirtDomainInfoNrVirtCpuDesc
 	ch <- libvirtDomainInfoCpuTimeDesc
+
+	//disk info
+	ch <- libvirtDomainBlockCapacity
+	ch <- libvirtDomainBlockAllocation
+	ch <- libvirtDomainBlockPhysical
+
 
 	ch <- libvirtDomainBlockRdBytesDesc
 	ch <- libvirtDomainBlockRdReqDesc
