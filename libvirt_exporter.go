@@ -17,16 +17,14 @@ package main
 
 import (
 	"encoding/xml"
+	"github.com/libvirt/libvirt-go"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rumanzo/libvirt_exporter_improved/libvirt_schema"
+	"gopkg.in/alecthomas/kingpin.v2"
 	"log"
 	"net/http"
 	"os"
-
-	"github.com/libvirt/libvirt-go"
-	"github.com/prometheus/client_golang/prometheus"
-	"gopkg.in/alecthomas/kingpin.v2"
-
-	"github.com/rumanzo/libvirt_exporter_improved/libvirt_schema"
 )
 
 var (
@@ -160,6 +158,54 @@ var (
 		"Number of packet transmit drops on a network interface.",
 		[]string{"domain", "source_bridge", "target_device", "virtualportinterfaceid"},
 		nil)
+
+	libvirtDomainMemoryStatMajorfaultDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_memory_stats", "major_fault"),
+		"Page faults occur when a process makes a valid access to virtual memory that is not available. "+
+			"When servicing the page fault, if disk IO is required, it is considered a major fault.",
+		[]string{"domain"},
+		nil)
+	libvirtDomainMemoryStatMinorFaultDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_memory_stats", "minor_fault"),
+		"Page faults occur when a process makes a valid access to virtual memory that is not available. "+
+			"When servicing the page not fault, if disk IO is required, it is considered a minor fault.",
+		[]string{"domain"},
+		nil)
+	libvirtDomainMemoryStatUnusedDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_memory_stats", "unused"),
+		"The amount of memory left completely unused by the system. Memory that is available but used for "+
+			"reclaimable caches should NOT be reported as free. This value is expressed in kB.",
+		[]string{"domain"},
+		nil)
+	libvirtDomainMemoryStatAvailableDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_memory_stats", "available"),
+		"The total amount of usable memory as seen by the domain. This value may be less than the amount of "+
+			"memory assigned to the domain if a balloon driver is in use or if the guest OS does not initialize all "+
+			"assigned pages. This value is expressed in kB.",
+		[]string{"domain"},
+		nil)
+	libvirtDomainMemoryStatActualBaloonDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_memory_stats", "actual_balloon"),
+		"Current balloon value (in KB).",
+		[]string{"domain"},
+		nil)
+	libvirtDomainMemoryStatRssDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_memory_stats", "rss"),
+		"Resident Set Size of the process running the domain. This value is in kB",
+		[]string{"domain"},
+		nil)
+	libvirtDomainMemoryStatUsableDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_memory_stats", "usable"),
+		"How much the balloon can be inflated without pushing the guest system to swap, corresponds "+
+			"to 'Available' in /proc/meminfo",
+		[]string{"domain"},
+		nil)
+	libvirtDomainMemoryStatDiskCachesDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_memory_stats", "disk_cache"),
+		"The amount of memory, that can be quickly reclaimed without additional I/O (in kB)."+
+			"Typically these pages are used for caching files from disk.",
+		[]string{"domain"},
+		nil)
 )
 
 // CollectDomain extracts Prometheus metrics from a libvirt domain.
@@ -210,7 +256,6 @@ func CollectDomain(ch chan<- prometheus.Metric, stat libvirt.DomainStats) error 
 		prometheus.CounterValue,
 		float64(info.State),
 		domainName)
-
 	// Report block device statistics.
 	for _, disk := range stat.Block {
 		var DiskSource string
@@ -218,8 +263,8 @@ func CollectDomain(ch chan<- prometheus.Metric, stat libvirt.DomainStats) error 
 			continue
 		}
 		/*  "block.<num>.path" - string describing the source of block device <num>,
-                       if it is a file or block device (omitted for network
-                       sources and drives with no media inserted). For network device (i.e. rbd) take from xml. */
+		    if it is a file or block device (omitted for network
+		    sources and drives with no media inserted). For network device (i.e. rbd) take from xml. */
 		for _, dev := range desc.Devices.Disks {
 			if dev.Target.Device == disk.Name {
 				if disk.PathSet {
@@ -428,6 +473,53 @@ func CollectDomain(ch chan<- prometheus.Metric, stat libvirt.DomainStats) error 
 		}
 	}
 
+	// Collect Memory Stats
+	memorystat, err := stat.Domain.MemoryStats(11, 0)
+	var MemoryStats libvirt_schema.VirDomainMemoryStats
+	if err == nil {
+		MemoryStats = MemoryStatCollect(&memorystat)
+	}
+	ch <- prometheus.MustNewConstMetric(
+		libvirtDomainMemoryStatMajorfaultDesc,
+		prometheus.CounterValue,
+		float64(MemoryStats.Major_fault),
+		domainName)
+	ch <- prometheus.MustNewConstMetric(
+		libvirtDomainMemoryStatMinorFaultDesc,
+		prometheus.CounterValue,
+		float64(MemoryStats.Minor_fault),
+		domainName)
+	ch <- prometheus.MustNewConstMetric(
+		libvirtDomainMemoryStatUnusedDesc,
+		prometheus.CounterValue,
+		float64(MemoryStats.Unused),
+		domainName)
+	ch <- prometheus.MustNewConstMetric(
+		libvirtDomainMemoryStatAvailableDesc,
+		prometheus.CounterValue,
+		float64(MemoryStats.Available),
+		domainName)
+	ch <- prometheus.MustNewConstMetric(
+		libvirtDomainMemoryStatActualBaloonDesc,
+		prometheus.CounterValue,
+		float64(MemoryStats.Actual_balloon),
+		domainName)
+	ch <- prometheus.MustNewConstMetric(
+		libvirtDomainMemoryStatRssDesc,
+		prometheus.CounterValue,
+		float64(MemoryStats.Rss),
+		domainName)
+	ch <- prometheus.MustNewConstMetric(
+		libvirtDomainMemoryStatUsableDesc,
+		prometheus.CounterValue,
+		float64(MemoryStats.Usable),
+		domainName)
+	ch <- prometheus.MustNewConstMetric(
+		libvirtDomainMemoryStatDiskCachesDesc,
+		prometheus.CounterValue,
+		float64(MemoryStats.Disk_caches),
+		domainName)
+
 	return nil
 }
 
@@ -454,6 +546,31 @@ func CollectFromLibvirt(ch chan<- prometheus.Metric, uri string) error {
 		}
 	}
 	return nil
+}
+
+func MemoryStatCollect(memorystat *[]libvirt.DomainMemoryStat) libvirt_schema.VirDomainMemoryStats {
+	var MemoryStats libvirt_schema.VirDomainMemoryStats
+	for _, domainmemorystat := range *memorystat {
+		switch tag := domainmemorystat.Tag; tag {
+		case 2:
+			MemoryStats.Major_fault = domainmemorystat.Val
+		case 3:
+			MemoryStats.Minor_fault = domainmemorystat.Val
+		case 4:
+			MemoryStats.Unused = domainmemorystat.Val
+		case 5:
+			MemoryStats.Available = domainmemorystat.Val
+		case 6:
+			MemoryStats.Actual_balloon = domainmemorystat.Val
+		case 7:
+			MemoryStats.Rss = domainmemorystat.Val
+		case 8:
+			MemoryStats.Usable = domainmemorystat.Val
+		case 10:
+			MemoryStats.Disk_caches = domainmemorystat.Val
+		}
+	}
+	return MemoryStats
 }
 
 // LibvirtExporter implements a Prometheus exporter for libvirt state.
@@ -502,6 +619,16 @@ func (e *LibvirtExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- libvirtDomainInterfaceTxPacketsDesc
 	ch <- libvirtDomainInterfaceTxErrsDesc
 	ch <- libvirtDomainInterfaceTxDropDesc
+
+	// Domain memory stats
+	ch <- libvirtDomainMemoryStatMajorfaultDesc
+	ch <- libvirtDomainMemoryStatMinorFaultDesc
+	ch <- libvirtDomainMemoryStatUnusedDesc
+	ch <- libvirtDomainMemoryStatAvailableDesc
+	ch <- libvirtDomainMemoryStatActualBaloonDesc
+	ch <- libvirtDomainMemoryStatRssDesc
+	ch <- libvirtDomainMemoryStatUsableDesc
+	ch <- libvirtDomainMemoryStatDiskCachesDesc
 }
 
 // Collect scrapes Prometheus metrics from libvirt.
