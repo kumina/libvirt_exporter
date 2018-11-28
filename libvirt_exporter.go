@@ -206,6 +206,11 @@ var (
 			"Typically these pages are used for caching files from disk.",
 		[]string{"domain"},
 		nil)
+	libvirtDomainMemoryStatUsedPercentDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("libvirt", "domain_memory_stats", "used_percent"),
+		"The amount of memory in percent, that used by domain.",
+		[]string{"domain"},
+		nil)
 )
 
 // CollectDomain extracts Prometheus metrics from a libvirt domain.
@@ -476,8 +481,13 @@ func CollectDomain(ch chan<- prometheus.Metric, stat libvirt.DomainStats) error 
 	// Collect Memory Stats
 	memorystat, err := stat.Domain.MemoryStats(11, 0)
 	var MemoryStats libvirt_schema.VirDomainMemoryStats
+	var used_percent float64
 	if err == nil {
 		MemoryStats = MemoryStatCollect(&memorystat)
+		if (MemoryStats.Usable != 0 && MemoryStats.Available != 0) {
+			used_percent = (float64(MemoryStats.Available) - float64(MemoryStats.Usable)) / (float64(MemoryStats.Available)/float64(100))
+		}
+
 	}
 	ch <- prometheus.MustNewConstMetric(
 		libvirtDomainMemoryStatMajorfaultDesc,
@@ -519,6 +529,12 @@ func CollectDomain(ch chan<- prometheus.Metric, stat libvirt.DomainStats) error 
 		prometheus.CounterValue,
 		float64(MemoryStats.Disk_caches),
 		domainName)
+	ch <- prometheus.MustNewConstMetric(
+		libvirtDomainMemoryStatUsedPercentDesc,
+		prometheus.CounterValue,
+		float64(used_percent),
+		domainName)
+
 
 	return nil
 }

@@ -44,7 +44,15 @@ libvirt_domain_interface_stats_transmit_packets_total{domain="...",source_bridge
 libvirt_domain_interface_stats_transmit_errors_total{domain="...",source_bridge="...",target_device="...", virtualportinterfaceid="..."}
 libvirt_domain_interface_stats_transmit_drops_total{domain="...",source_bridge="...",target_device="...", virtualportinterfaceid="..."}
 
-
+libvirt_domain_memory_stats_major_fault{domain="..."}
+libvirt_domain_memory_stats_minor_fault{domain="..."}
+libvirt_domain_memory_stats_unused{domain="..."}
+libvirt_domain_memory_stats_available{domain="..."}
+libvirt_domain_memory_stats_actual_balloon{domain="..."}
+libvirt_domain_memory_stats_rss{domain="..."}
+libvirt_domain_memory_stats_usable{domain="..."}
+libvirt_domain_memory_stats_disk_cache{domain="..."}
+libvirt_domain_memory_stats_used_percent{domain="..."}
 
 libvirt_up
 ```
