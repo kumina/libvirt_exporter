@@ -61,9 +61,9 @@ type LibvirtExporter struct {
 func NewLibvirtExporter(uri string, exportNovaMetadata bool) (*LibvirtExporter, error) {
 	var domainLabels []string
 	if exportNovaMetadata {
-		domainLabels = []string{"domain", "name", "flavor", "project_name"}
+		domainLabels = []string{"domain", "uuid", "name", "flavor", "project_name"}
 	} else {
-		domainLabels = []string{"domain"}
+		domainLabels = []string{"domain", "uuid"}
 	}
 	return &LibvirtExporter{
 		uri:                uri,
@@ -261,6 +261,7 @@ func (e *LibvirtExporter) CollectDomain(ch chan<- prometheus.Metric, domain *lib
 	if err != nil {
 		return err
 	}
+	var domainUUID = desc.UUID
 
 	// Extract domain label valuies
 	var domainLabelValues []string
@@ -270,9 +271,9 @@ func (e *LibvirtExporter) CollectDomain(ch chan<- prometheus.Metric, domain *lib
 			novaFlavor      = desc.Metadata.NovaInstance.Flavor.Name
 			novaProjectName = desc.Metadata.NovaInstance.Owner.ProjectName
 		)
-		domainLabelValues = []string{domainName, novaName, novaFlavor, novaProjectName}
+		domainLabelValues = []string{domainName, domainUUID, novaName, novaFlavor, novaProjectName}
 	} else {
-		domainLabelValues = []string{domainName}
+		domainLabelValues = []string{domainName, domainUUID}
 	}
 
 	// Report domain info.
