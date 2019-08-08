@@ -325,7 +325,7 @@ func CollectDomain(ch chan<- prometheus.Metric, stat libvirt.DomainStats) error 
 				prometheus.CounterValue,
 				float64(disk.WrReqs),
 				domainName,
-				disk.Name,
+				DiskSource,
 				disk.Name)
 		}
 		if disk.WrTimesSet {
