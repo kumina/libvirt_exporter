@@ -14,4 +14,4 @@ FROM scratch
 COPY --from=builder /usr/src/libvirt_exporter/libvirt_exporter .
 
 # Entrypoint for starting exporter
-ENTRYPOINT [ "./libvirt_exporter" ]
+CMD [ "./libvirt_exporter" ]
