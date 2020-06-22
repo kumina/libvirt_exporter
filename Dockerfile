@@ -11,7 +11,7 @@ RUN dockerscripts/build_static.sh
 FROM scratch
 
 # Copy binary from Stage 1
-COPY --from=builder libvirt_exporter .
+COPY --from=builder /usr/src/libvirt_exporter/libvirt_exporter .
 
 # Entrypoint for starting exporter
 ENTRYPOINT [ "./libvirt_exporter" ]
