@@ -1,6 +1,6 @@
 #!/bin/sh
 
-docker run -i -v `pwd`:/gopath/src/github.com/kumina/libvirt_exporter alpine:3.8 /bin/sh << 'EOF'
+docker run -i -v `pwd`:/gopath/src/github.com/kumina/libvirt_exporter alpine:3.13.1 /bin/sh << 'EOF'
 set -ex
 
 # Install prerequisites for the build process.
@@ -10,18 +10,18 @@ update-ca-certificates
 
 # Install libxml2. Alpine's version does not ship with a static library.
 cd /tmp
-wget ftp://xmlsoft.org/libxml2/libxml2-2.9.4.tar.gz
-tar -xf libxml2-2.9.4.tar.gz
-cd libxml2-2.9.4
+wget ftp://xmlsoft.org/libxml2/libxml2-2.9.9.tar.gz
+tar -xf libxml2-2.9.9.tar.gz
+cd libxml2-2.9.9
 ./configure --disable-shared --enable-static
 make -j2
 make install
 
 # Install libvirt. Alpine's version does not ship with a static library.
 cd /tmp
-wget https://libvirt.org/sources/libvirt-3.2.0.tar.xz
-tar -xf libvirt-3.2.0.tar.xz
-cd libvirt-3.2.0
+wget https://libvirt.org/sources/libvirt-5.0.0.tar.xz
+tar -xf libvirt-5.0.0.tar.xz
+cd libvirt-5.0.0
 ./configure --disable-shared --enable-static --localstatedir=/var --without-storage-mpath
 make -j2
 make install
