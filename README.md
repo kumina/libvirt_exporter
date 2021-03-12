@@ -1,5 +1,10 @@
 # Prometheus libvirt exporter
 
+**Please note:** This repository is currently unmaintained. Due to insufficient time and not using the exporter anymore
+we decided to archive this project.
+
+---
+
 This repository provides code for a Prometheus metrics exporter
 for [libvirt](https://libvirt.org/). This exporter connects to any
 libvirt daemon and exports per-domain metrics related to CPU, memory,
